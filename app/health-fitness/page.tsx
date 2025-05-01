@@ -64,6 +64,13 @@ export default function HealthFitness() {
   const dateKey = format(date, "yyyy-MM-dd");
   const { account } = useContext(AccountContext);
   const [dietLog, setDietLog] = useState(defaultDietLog);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthError, setHealthError] = useState("");
+  const [dietLoading, setDietLoading] = useState(false);
+  const [dietError, setDietError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // Firestore sync for health log
   useEffect(() => {
@@ -116,7 +123,16 @@ export default function HealthFitness() {
       [user]: { ...healthLog[user], gratitude: value },
     };
     setHealthLog(updated);
-    setDoc(doc(db, "healthLog", dateKey), updated, { merge: true });
+    setSaving(true);
+    setSaveError("");
+    setSaveSuccess(false);
+    setDoc(doc(db, "healthLog", dateKey), updated, { merge: true })
+      .then(() => {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 1200);
+      })
+      .catch((err) => setSaveError("Failed to save: " + err.message))
+      .finally(() => setSaving(false));
   };
 
   // Diet log handlers
@@ -150,6 +166,29 @@ export default function HealthFitness() {
     setDoc(doc(db, "dietLog", dateKey), updated, { merge: true });
   };
 
+  const handleGratitudeSave = async (user: "Suban" | "Ojaswi") => {
+    setHealthLoading(true);
+    setHealthError("");
+    try {
+      await setDoc(doc(db, "healthLog", dateKey), healthLog, { merge: true });
+    } catch (err: any) {
+      setHealthError("Failed to save health log: " + err.message);
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+  const handleDietSave = async (user: "Suban" | "Ojaswi") => {
+    setDietLoading(true);
+    setDietError("");
+    try {
+      await setDoc(doc(db, "dietLog", dateKey), dietLog, { merge: true });
+    } catch (err: any) {
+      setDietError("Failed to save diet log: " + err.message);
+    } finally {
+      setDietLoading(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#f8f9fa] p-4 flex flex-col items-center text-black pb-20">
       <div className="w-full max-w-4xl mx-auto">
@@ -175,6 +214,7 @@ export default function HealthFitness() {
         <div className="flex flex-col md:flex-row gap-6 w-full max-w-3xl mx-auto">
           {users.map((user) => {
             const typedUser = user as 'Suban' | 'Ojaswi';
+            const canEdit = account === user;
             return (
               <section key={user} className="bg-white rounded-xl shadow p-4 border border-[#e9ecef] mb-4 w-full max-w-md mx-auto">
                 <button
@@ -209,8 +249,9 @@ export default function HealthFitness() {
                         className="w-full border rounded p-2 bg-[#f8f9fa]"
                         rows={2}
                         value={healthLog[typedUser].gratitude}
-                        onChange={e => handleGratitude(typedUser, e.target.value)}
+                        onChange={e => canEdit && handleGratitude(typedUser, e.target.value)}
                         placeholder="Write 1–2 things..."
+                        readOnly={!canEdit}
                       />
                     </div>
                     <button
@@ -222,6 +263,9 @@ export default function HealthFitness() {
                     </button>
                   </div>
                 )}
+                {saving && <div className="text-blue-500 mb-2 animate-pulse">Saving...</div>}
+                {saveSuccess && <div className="text-green-600 mb-2">Saved ✔️</div>}
+                {saveError && <div className="text-red-500 mb-2">{saveError}</div>}
               </section>
             );
           })}

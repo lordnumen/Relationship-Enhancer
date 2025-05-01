@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import { format } from "date-fns";
@@ -19,6 +19,8 @@ import NavBar from "../components/NavBar";
 import AccountSwitcher from "../components/AccountSwitcher";
 import { useContext } from "react";
 import { AccountContext } from "../components/AccountProvider";
+import { storage } from "../firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const defaultGoals = {
   daily: [],
@@ -54,6 +56,9 @@ const defaultTracker = {
 
 const users = ["Suban", "Ojaswi"];
 
+// We'll use a fixed document for demo; in production, use user IDs or dates
+const TRACKER_DOC_ID = "shared-daily-tracker";
+
 export default function Tracker() {
   const { account } = useContext(AccountContext);
   const [date, setDate] = useState(new Date());
@@ -64,6 +69,16 @@ export default function Tracker() {
   const [feedback, setFeedback] = useState(defaultFeedback);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [trackerLoading, setTrackerLoading] = useState(false);
+  const [trackerError, setTrackerError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [note, setNote] = useState("");
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const dateKey = format(date, "yyyy-MM-dd");
 
@@ -120,7 +135,16 @@ export default function Tracker() {
       },
     };
     setTracker(newTracker);
-    setDoc(doc(db, "tracker", dateKey), newTracker, { merge: true });
+    setSaving(true);
+    setSaveError("");
+    setSaveSuccess(false);
+    setDoc(doc(db, "tracker", dateKey), newTracker, { merge: true })
+      .then(() => {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 1200);
+      })
+      .catch((err) => setSaveError("Failed to save: " + err.message))
+      .finally(() => setSaving(false));
   };
 
   // Save goals changes
@@ -156,6 +180,65 @@ export default function Tracker() {
     setDoc(doc(db, "feedback", dateKey), newFeedback, { merge: true });
   };
 
+  // Load daily notes and images for selected date
+  useEffect(() => {
+    setLoading(true);
+    setNote("");
+    setImageUrls([]);
+    const unsub = onSnapshot(doc(db, "trackers", dateKey), (snapshot) => {
+      const data = snapshot.data();
+      setNote(data?.note || "");
+      setImageUrls(Array.isArray(data?.imageUrls) ? data.imageUrls : data?.imageUrl ? [data.imageUrl] : []);
+      setLoading(false);
+    });
+    return unsub;
+  }, [dateKey]);
+
+  // Auto-save note for selected date
+  useEffect(() => {
+    if (!loading) {
+      setDoc(doc(db, "trackers", dateKey), { note, imageUrls }, { merge: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note]);
+
+  // Auto-save image (add to gallery) for selected date
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUploadError("");
+    if (!e.target.files?.[0]) return;
+    const file = e.target.files[0];
+    setUploading(true);
+    try {
+      const storageRef = ref(storage, `trackerImages/${dateKey}/${file.name}-${Date.now()}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      const newImageUrls = [...imageUrls, url];
+      setImageUrls(newImageUrls);
+      // Save imageUrls array to Firestore
+      await setDoc(doc(db, "trackers", dateKey), { imageUrls: newImageUrls }, { merge: true });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (err: any) {
+      setUploadError("Failed to upload image: " + (err.message || err));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Auto-save imageUrls to Firestore when changed (if not already handled)
+  useEffect(() => {
+    if (!loading) {
+      setDoc(doc(db, "trackers", dateKey), { note, imageUrls }, { merge: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageUrls]);
+
+  // Delete image from gallery for selected date
+  const handleDeleteImage = (idx: number) => {
+    const updated = imageUrls.filter((_, i) => i !== idx);
+    setImageUrls(updated);
+    setDoc(doc(db, "trackers", dateKey), { note, imageUrls: updated }, { merge: true });
+  };
+
   return (
     <main className="min-h-screen bg-[#f8f9fa] p-4 flex flex-col items-center text-black pb-20">
       <div className="w-full max-w-4xl mx-auto">
@@ -166,6 +249,10 @@ export default function Tracker() {
         </div>
         {loading && <div className="mb-4 text-gray-500">Loading...</div>}
         {error && <div className="mb-4 text-red-500">{error}</div>}
+        {trackerError && <div className="text-red-500 mb-2">{trackerError}</div>}
+        {saving && <div className="text-blue-500 mb-2 animate-pulse">Saving...</div>}
+        {saveSuccess && <div className="text-green-600 mb-2">Saved ✔️</div>}
+        {saveError && <div className="text-red-500 mb-2">{saveError}</div>}
         {/* Calendar */}
         <div className="mb-6 flex flex-col md:flex-row gap-6 items-start">
           <div className="bg-white rounded-xl shadow p-4 border border-[#e9ecef]">
@@ -224,7 +311,7 @@ export default function Tracker() {
                 max={5}
                 className="w-full border rounded p-2 bg-[#f8f9fa]"
                 value={tracker.suban.satisfaction}
-                onChange={e => account === "Suban" && handleTrackerChange("Suban", "satisfaction", e.target.value)}
+                onChange={e => account === "Suban" && handleTrackerChange("Suban", "satisfaction", Number(e.target.value))}
                 readOnly={account !== "Suban"}
               />
             </div>
@@ -236,7 +323,7 @@ export default function Tracker() {
                 max={5}
                 className="w-full border rounded p-2 bg-[#f8f9fa]"
                 value={tracker.suban.love}
-                onChange={e => account === "Suban" && handleTrackerChange("Suban", "love", e.target.value)}
+                onChange={e => account === "Suban" && handleTrackerChange("Suban", "love", Number(e.target.value))}
                 readOnly={account !== "Suban"}
               />
             </div>
@@ -306,7 +393,7 @@ export default function Tracker() {
                 max={5}
                 className="w-full border rounded p-2 bg-[#f8f9fa]"
                 value={tracker.ojaswi.satisfaction}
-                onChange={e => account === "Ojaswi" && handleTrackerChange("Ojaswi", "satisfaction", e.target.value)}
+                onChange={e => account === "Ojaswi" && handleTrackerChange("Ojaswi", "satisfaction", Number(e.target.value))}
                 readOnly={account !== "Ojaswi"}
               />
             </div>
@@ -318,7 +405,7 @@ export default function Tracker() {
                 max={5}
                 className="w-full border rounded p-2 bg-[#f8f9fa]"
                 value={tracker.ojaswi.love}
-                onChange={e => account === "Ojaswi" && handleTrackerChange("Ojaswi", "love", e.target.value)}
+                onChange={e => account === "Ojaswi" && handleTrackerChange("Ojaswi", "love", Number(e.target.value))}
                 readOnly={account !== "Ojaswi"}
               />
             </div>
@@ -404,7 +491,7 @@ export default function Tracker() {
               <textarea
                 className="w-full border rounded p-2 bg-[#f8f9fa]"
                 value={feedback.suban.text}
-                onChange={e => account === "Suban" && handleFeedbackChange("Suban", "text", e.target.value)}
+                onChange={e => handleFeedbackChange("Suban", "text", e.target.value)}
                 readOnly={account !== "Suban"}
                 placeholder="Write feedback for Ojaswi..."
               />
@@ -415,7 +502,7 @@ export default function Tracker() {
                 max={5}
                 className="w-full border rounded p-2 bg-[#f8f9fa]"
                 value={feedback.suban.rating}
-                onChange={e => account === "Suban" && handleFeedbackChange("Suban", "rating", e.target.value)}
+                onChange={e => handleFeedbackChange("Suban", "rating", e.target.value)}
                 readOnly={account !== "Suban"}
               />
             </div>
@@ -424,7 +511,7 @@ export default function Tracker() {
               <textarea
                 className="w-full border rounded p-2 bg-[#f8f9fa]"
                 value={feedback.ojaswi.text}
-                onChange={e => account === "Ojaswi" && handleFeedbackChange("Ojaswi", "text", e.target.value)}
+                onChange={e => handleFeedbackChange("Ojaswi", "text", e.target.value)}
                 readOnly={account !== "Ojaswi"}
                 placeholder="Write feedback for Suban..."
               />
@@ -435,10 +522,130 @@ export default function Tracker() {
                 max={5}
                 className="w-full border rounded p-2 bg-[#f8f9fa]"
                 value={feedback.ojaswi.rating}
-                onChange={e => account === "Ojaswi" && handleFeedbackChange("Ojaswi", "rating", e.target.value)}
+                onChange={e => handleFeedbackChange("Ojaswi", "rating", e.target.value)}
                 readOnly={account !== "Ojaswi"}
               />
             </div>
+          </div>
+        </section>
+        <section className="mb-6 bg-white rounded-xl shadow p-6 border border-[#e9ecef]">
+          <h3 className="text-lg font-bold mb-2" style={{ color: '#e63946', fontWeight: 700 }}>
+            Daily Notes and Image
+          </h3>
+          <div style={{
+            background: "linear-gradient(135deg, #f8fafc 60%, #e63946 100%)",
+            borderRadius: 16,
+            boxShadow: "0 4px 24px #e6394611",
+            padding: 24,
+            marginBottom: 16,
+            position: "relative",
+            overflow: "hidden"
+          }}>
+            <textarea
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder="Write your notes here..."
+              rows={6}
+              style={{
+                width: "100%",
+                marginBottom: 16,
+                fontSize: 18,
+                padding: 14,
+                borderRadius: 12,
+                border: "1.5px solid #e63946",
+                background: "#fff",
+                boxShadow: "0 2px 8px #e6394611",
+                outline: "none",
+                transition: "border 0.2s"
+              }}
+            />
+            <label
+              htmlFor="image-upload"
+              style={{
+                display: "inline-block",
+                padding: "10px 24px",
+                background: uploading ? "#e63946cc" : "#e63946",
+                color: "#fff",
+                borderRadius: 8,
+                fontWeight: 600,
+                fontSize: 16,
+                cursor: uploading ? "not-allowed" : "pointer",
+                marginBottom: 12,
+                boxShadow: uploading ? "0 0 0 2px #e6394633" : "0 2px 8px #e6394611",
+                opacity: uploading ? 0.7 : 1,
+                transition: "all 0.2s"
+              }}
+            >
+              {uploading ? (
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span className="loader" style={{
+                    width: 18, height: 18, border: "3px solid #fff", borderTop: "3px solid #e63946", borderRadius: "50%", display: "inline-block", animation: "spin 1s linear infinite"
+                  }} />
+                  Uploading...
+                </span>
+              ) : (
+                <>
+                  <span style={{ fontSize: 20, marginRight: 8 }}>📷</span> Upload Image
+                </>
+              )}
+              <input
+                id="image-upload"
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                style={{ display: "none" }}
+                disabled={uploading}
+              />
+            </label>
+            {uploadError && <div style={{ color: "#e63946", marginTop: 8, fontWeight: 500 }}>{uploadError}</div>}
+            {imageUrls.length > 0 && !uploading && (
+              <div style={{
+                marginTop: 18,
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 16,
+                justifyContent: "center"
+              }}>
+                {imageUrls.map((url, idx) => (
+                  <div key={url + idx} style={{ position: "relative", display: "inline-block" }}>
+                    <img
+                      src={url}
+                      alt={`Uploaded ${idx + 1}`}
+                      style={{
+                        maxWidth: 160,
+                        maxHeight: 160,
+                        borderRadius: 14,
+                        boxShadow: "0 4px 24px #e6394611",
+                        margin: "0 auto"
+                      }}
+                    />
+                    <button
+                      onClick={() => handleDeleteImage(idx)}
+                      style={{
+                        position: "absolute",
+                        top: 6,
+                        right: 6,
+                        background: "#e63946",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "50%",
+                        width: 28,
+                        height: 28,
+                        fontSize: 18,
+                        cursor: "pointer",
+                        boxShadow: "0 2px 8px #e6394611",
+                        opacity: 0.85,
+                        transition: "opacity 0.2s"
+                      }}
+                      title="Delete image"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
       </div>

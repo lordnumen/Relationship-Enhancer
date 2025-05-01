@@ -43,6 +43,11 @@ export default function LoveEnhancer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const dateKey = format(date, "yyyy-MM-dd");
+  const [reflectionLoading, setReflectionLoading] = useState(false);
+  const [reflectionError, setReflectionError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // Firestore sync
   useEffect(() => {
@@ -96,7 +101,16 @@ export default function LoveEnhancer() {
       },
     };
     setReflection(newReflection);
-    setDoc(doc(db, "loveReflection", dateKey), newReflection, { merge: true });
+    setSaving(true);
+    setSaveError("");
+    setSaveSuccess(false);
+    setDoc(doc(db, "loveReflection", dateKey), newReflection, { merge: true })
+      .then(() => {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 1200);
+      })
+      .catch((err) => setSaveError("Failed to save: " + err.message))
+      .finally(() => setSaving(false));
   };
   // Save energy
   const handleEnergyChange = (user: "Suban" | "Ojaswi", value: number) => {
@@ -244,6 +258,9 @@ export default function LoveEnhancer() {
             </div>
           )}
         </section>
+        {saving && <div className="text-blue-500 mb-2 animate-pulse">Saving...</div>}
+        {saveSuccess && <div className="text-green-600 mb-2">Saved ✔️</div>}
+        {saveError && <div className="text-red-500 mb-2">{saveError}</div>}
       </div>
       <NavBar />
     </main>
