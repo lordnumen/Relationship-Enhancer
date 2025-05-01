@@ -217,13 +217,6 @@ export default function Home() {
             <span className="text-2xl font-bold" style={{ color: "#FF6B6B", fontFamily: 'serif' }}>{todayString}</span>
           </div>
         </section>
-        {/* Vercel AI Link */}
-        <section className="mb-8 flex flex-col items-center">
-          <a href="https://relationship-tracker.vercel.app" target="_blank" rel="noopener noreferrer" className="rounded-xl shadow p-6 border border-[#FFE3E3] flex flex-col items-center w-full max-w-md mx-auto hover:bg-[#FFF9F4] transition" style={{ background: "#FFF9F4" }}>
-            <span className="text-lg font-serif mb-2" style={{ color: "#333333" }}>Access on Vercel AI</span>
-            <span className="text-2xl font-bold" style={{ color: "#FF6B6B", fontFamily: 'serif' }}>Click Here</span>
-          </a>
-        </section>
       </div>
       <NavBar />
     </main>
