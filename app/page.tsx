@@ -119,8 +119,18 @@ export default function Home() {
       {/* Hero Section */}
       <section style={{ width: "100%", background: "linear-gradient(135deg, #ffdde1 0%, #ee9ca7 100%)", borderBottomLeftRadius: 32, borderBottomRightRadius: 32, boxShadow: "0 4px 24px #e6394611", padding: "2.5rem 0 1.5rem 0", marginBottom: 32 }}>
         <div className="max-w-4xl mx-auto flex flex-col items-center">
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 120 }}>
-            <span style={{ fontSize: 48, color: "#e63946", display: "inline-block", marginBottom: 8 }}>💓</span>
+          <motion.div 
+            initial={{ scale: 0.8, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }} 
+            transition={{ type: "spring", stiffness: 120 }}
+          >
+            <motion.span 
+              style={{ fontSize: 48, color: "#e63946", display: "inline-block", marginBottom: 8 }}
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+            >
+              💓
+            </motion.span>
           </motion.div>
           <h1 className="text-3xl font-bold mb-2" style={{ color: "#e63946", fontFamily: 'Nunito, sans-serif' }}>Welcome to LoveEnhancer</h1>
           <p className="text-lg mb-2" style={{ color: "#b5838d" }}>Cherish every moment together.</p>
@@ -149,17 +159,9 @@ export default function Home() {
                     src={img}
                     alt="gallery"
                     className="h-32 w-48 object-cover rounded-xl border border-[#FFE3E3] shadow-sm transition-transform duration-200 hover:scale-105"
-                    style={{ scrollSnapAlign: "start" }}
+                    style={{ scrollSnapAlign: "start", width: "1600px", height: "900px", objectFit: "cover" }}
                     onClick={() => setModalImg(img)}
                   />
-                  <AnimatePresence>
-                    {uploading && i === images.length - 1 && (
-                      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="absolute top-2 left-2 right-2 flex flex-col items-center z-10">
-                        <motion.div animate={{ rotate: [0, 20, -20, 0] }} transition={{ repeat: Infinity, duration: 1 }} style={{ fontSize: 28, color: "#e63946" }}>💘</motion.div>
-                        <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 1.2 }} className="text-xs font-bold text-white bg-[#e63946] px-2 py-1 rounded-full shadow-lg mt-1" style={{ letterSpacing: 1 }}>Uploading...</motion.div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
                   <button
                     className="absolute top-2 right-2 bg-[#FF6B6B] text-white rounded-full p-1 opacity-80 hover:opacity-100 transition text-xs hidden group-hover:block"
                     onClick={() => handleDeleteImage(i)}
@@ -171,6 +173,32 @@ export default function Home() {
                   </button>
                 </motion.div>
               ))}
+              {/* Empty space for upload effect */}
+              {uploading && (
+                <motion.div 
+                  className="relative h-32 w-48 rounded-xl border border-[#FFE3E3] shadow-sm flex items-center justify-center"
+                  style={{ background: "rgba(255, 255, 255, 0.1)" }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <motion.div 
+                    animate={{ rotate: [0, 20, -20, 0] }} 
+                    transition={{ repeat: Infinity, duration: 1 }} 
+                    style={{ fontSize: 28, color: "#e63946" }}
+                  >
+                    💘
+                  </motion.div>
+                  <motion.div 
+                    animate={{ scale: [1, 1.1, 1] }} 
+                    transition={{ repeat: Infinity, duration: 1.2 }} 
+                    className="absolute text-xs font-bold text-white bg-[#e63946] px-2 py-1 rounded-full shadow-lg mt-12"
+                    style={{ letterSpacing: 1 }}
+                  >
+                    Uploading...
+                  </motion.div>
+                </motion.div>
+              )}
             </div>
             {/* Floating Upload Button */}
             <motion.button
@@ -191,15 +219,24 @@ export default function Home() {
               onChange={handleFileChange}
               disabled={uploading}
             />
-            {uploading && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute left-1/2 -translate-x-1/2 top-0 z-20 flex flex-col items-center">
-              <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: Infinity, duration: 1 }} style={{ fontSize: 32, color: "#e63946" }}>💘</motion.div>
-              <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 1.2 }} className="text-xs font-bold text-white bg-[#e63946] px-2 py-1 rounded-full shadow-lg mt-1" style={{ letterSpacing: 1 }}>Uploading...</motion.div>
-            </motion.div>}
           </div>
-          {uploadSuccess && <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="text-center mt-2">
-            <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: 2, duration: 0.7 }} style={{ fontSize: 28, color: "#e63946", display: "inline-block" }}>💘</motion.div>
-            <span className="ml-2 text-[#e63946] font-bold bg-white px-3 py-1 rounded-full shadow">Uploaded!</span>
-          </motion.div>}
+          {uploadSuccess && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              exit={{ opacity: 0, y: -10 }} 
+              className="text-center mt-2"
+            >
+              <motion.div 
+                animate={{ scale: [1, 1.2, 1] }} 
+                transition={{ repeat: 2, duration: 0.7 }} 
+                style={{ fontSize: 28, color: "#e63946", display: "inline-block" }}
+              >
+                💘
+              </motion.div>
+              <span className="ml-2 text-[#e63946] font-bold bg-white px-3 py-1 rounded-full shadow">Uploaded!</span>
+            </motion.div>
+          )}
           {uploadError && <div className="text-red-500 mb-2 text-center font-semibold">{uploadError}</div>}
           {/* Modal for image view */}
           <AnimatePresence>

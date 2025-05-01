@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
 
 const navItems = [
   { href: "/tracker", label: "Daily Tracker", icon: "📅" },
@@ -16,10 +17,22 @@ export default function NavBar() {
         <Link
           key={item.href}
           href={item.href}
-          className={`flex flex-col items-center px-2 py-1 text-sm font-semibold transition-colors ${pathname === item.href ? "text-black" : "text-[#22223b]/60"}`}
+          className={`flex flex-col items-center ${
+            pathname === item.href ? "text-[#FF6B6B]" : "text-gray-500"
+          }`}
         >
-          <span className="text-xl mb-1">{item.icon}</span>
-          {item.label}
+          {item.href === "/" ? (
+            <motion.span 
+              className="text-2xl"
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+            >
+              {item.icon}
+            </motion.span>
+          ) : (
+            <span className="text-2xl">{item.icon}</span>
+          )}
+          <span className="text-xs mt-1">{item.label}</span>
         </Link>
       ))}
     </nav>
